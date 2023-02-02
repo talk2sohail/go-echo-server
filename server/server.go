@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -9,36 +10,68 @@ import (
 	"example.com/echo/config"
 )
 
-func readCommand() {}
+func readCommand(c net.Conn) (string, error) {
 
-func respond() {}
+	var buf []byte = make([]byte, 512)
+	n, err := c.Read(buf[:])
+	log.Println(n, err)
+	if err != nil {
+		return "", err
+	}
+	return string(buf[:n]), nil
+}
 
-func handleConnection(c net.Conn) {
-	fmt.Println("Connection Success!")
+func respond(msg string, c net.Conn) error {
+	if _, err := c.Write([]byte(msg)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func RunSyncServer() {
-
-	var connection_count int = 0
 	var addr = fmt.Sprintf("%s:%s", config.HOST, strconv.Itoa(config.PORT))
+
+	log.Println("Started a TCP server on", addr)
+
+	var connection_count uint64 = 0
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		// handle error
-		log.Fatalf("Failed to connect to the server: %s", err)
+		log.Println("Listen failed: ", err)
 	}
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-
-			// handle error
-			log.Println("Failed to accept the connection")
+			log.Println("Failed to accept the connection", err)
 		}
+
 		connection_count += 1
+		log.Println("Client connected with addr: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
 
-		log.Println("Connected to a client, client count: ", connection_count)
+		for {
 
-		go handleConnection(conn)
+			cmd, err := readCommand(conn)
+
+			if err != nil {
+				conn.Close()
+				connection_count -= 1
+				log.Println("Client disconnected: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
+
+				if err == io.EOF {
+					log.Println("Connection ended due to: ", err)
+					break
+				}
+
+			}
+			log.Println(cmd)
+			err = respond(cmd, conn)
+			if err != nil {
+				log.Println("Failed to respond: ", err)
+			}
+
+		}
+
 	}
 }

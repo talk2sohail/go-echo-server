@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"example.com/echo/config"
@@ -47,7 +49,18 @@ func main() {
 	setupFlags()
 
 	wait := waitForShutDown(shutdownAfter(2 * time.Second))
-	server.RunSyncServer()
+
+	// NOTE: if you want to run multiple instances of the server, give 'addr' as ':0',
+	// as this will be used to assign a random port number so that no server will be
+	// listening to the same port i.e fixed port given by the user as flag argument
+	addr := fmt.Sprintf("%s:%s", config.HOST, strconv.Itoa(config.PORT))
+	s, err := server.NewServer(addr)
+	if err != nil {
+		log.Fatalf("Cannot spin up the server: %v", err)
+	}
+
+	s.Serve()
+
 	<-wait
 
 }

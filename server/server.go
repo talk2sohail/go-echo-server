@@ -5,10 +5,30 @@ import (
 	"io"
 	"log"
 	"net"
-	"strconv"
-
-	"example.com/echo/config"
 )
+
+var connection_count uint64 = 0
+
+type Server struct {
+	listener net.Listener
+	quit     chan struct{}
+	addr     string
+}
+
+func NewServer(addr string) (Server, error) {
+	s := Server{
+		quit: make(chan struct{}),
+		addr: addr,
+	}
+	ln, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		return Server{}, fmt.Errorf(fmt.Sprintf("Listen Error: %v", err))
+	}
+
+	s.listener = ln
+
+	return s, nil
+}
 
 func readCommand(c net.Conn) (string, error) {
 
@@ -29,48 +49,44 @@ func respond(msg string, c net.Conn) error {
 	return nil
 }
 
-func RunSyncServer() {
-	var addr = fmt.Sprintf("%s:%s", config.HOST, strconv.Itoa(config.PORT))
+func (s Server) Serve() {
 
-	log.Println("Started a TCP server on", addr)
-
-	var connection_count uint64 = 0
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Println("Listen failed: ", err)
-	}
+	log.Println("Started a TCP server on", s.addr)
 
 	for {
-		conn, err := ln.Accept()
+		conn, err := s.listener.Accept()
 		if err != nil {
 			log.Println("Failed to accept the connection", err)
 		}
 
-		connection_count += 1
-		log.Println("Client connected with addr: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
+		go handleConnection(conn)
+	}
+}
 
-		for {
+func handleConnection(conn net.Conn) {
 
-			cmd, err := readCommand(conn)
+	connection_count += 1
+	log.Println("Client connected with addr: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
 
-			if err != nil {
-				conn.Close()
-				connection_count -= 1
-				log.Println("Client disconnected: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
+	for {
 
-				if err == io.EOF {
-					log.Println("Connection ended due to: ", err)
-					break
-				}
+		cmd, err := readCommand(conn)
 
+		if err != nil {
+			conn.Close()
+			connection_count -= 1
+			log.Println("Client disconnected: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
+
+			if err == io.EOF {
+				log.Println("Connection ended due to: ", err)
+				break
 			}
-			log.Println(cmd)
-			err = respond(cmd, conn)
-			if err != nil {
-				log.Println("Failed to respond: ", err)
-			}
 
+		}
+		log.Println(cmd)
+		err = respond(cmd, conn)
+		if err != nil {
+			log.Println("Failed to respond: ", err)
 		}
 
 	}

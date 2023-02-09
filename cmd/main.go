@@ -48,7 +48,7 @@ func waitForShutDown(cleanUp cleanupCallbackFunc) chan struct{} {
 func main() {
 	setupFlags()
 
-	wait := waitForShutDown(shutdownAfter(2 * time.Second))
+	// wait := waitForShutDown(shutdownAfter(2 * time.Second))
 
 	// NOTE: if you want to run multiple instances of the server, give 'addr' as ':0',
 	// as this will be used to assign a random port number so that no server will be
@@ -60,7 +60,5 @@ func main() {
 	}
 
 	s.Serve()
-
-	<-wait
 
 }

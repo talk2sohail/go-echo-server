@@ -33,6 +33,8 @@ func NewServer(addr string) (Server, error) {
 func readCommand(c net.Conn) (string, error) {
 
 	var buf []byte = make([]byte, 512)
+	fmt.Fprint(c, ">> ")
+
 	n, err := c.Read(buf[:])
 	log.Println(n, err)
 	if err != nil {
@@ -71,7 +73,6 @@ func handleConnection(conn net.Conn) {
 	for {
 
 		cmd, err := readCommand(conn)
-
 		if err != nil {
 			conn.Close()
 			connection_count -= 1

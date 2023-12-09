@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 )
 
 var connection_count uint64 = 0
@@ -40,10 +41,33 @@ func readCommand(c net.Conn) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(buf[:n]), nil
+
+	userInput := string(buf[:n]) // this send the while user input
+	msg := sanitize(userInput)
+	cmd := match(msg)
+	return cmd, nil
+}
+
+func sanitize(msg string) string {
+	var out string
+	out = msg[:len(msg)-1] // cut the new line
+	out = strings.Trim(out, " ")
+	return out
+}
+
+func match(cmd string) string {
+	switch cmd {
+	case "history":
+		return "Great, you know your 'History'!"
+	case "hello":
+		return "Hello there, how are you doing?"
+	default:
+		return cmd
+	}
 }
 
 func respond(msg string, c net.Conn) error {
+	msg += "\n"
 	if _, err := c.Write([]byte(msg)); err != nil {
 		return err
 	}

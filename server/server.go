@@ -14,6 +14,7 @@ type Server struct {
 	listener net.Listener
 	quit     chan struct{}
 	addr     string
+	history  []string
 }
 
 func NewServer(addr string) (Server, error) {
@@ -31,48 +32,27 @@ func NewServer(addr string) (Server, error) {
 	return s, nil
 }
 
-func readCommand(c net.Conn) (string, error) {
+func (s *Server) readCommand(c net.Conn) (string, error) {
 
 	var buf []byte = make([]byte, 512)
 	fmt.Fprint(c, ">> ")
 
 	n, err := c.Read(buf[:])
-	log.Println(n, err)
 	if err != nil {
 		return "", err
 	}
 
-	userInput := string(buf[:n]) // this send the while user input
+	userInput := string(buf[:n])
 	msg := sanitize(userInput)
-	cmd := match(msg)
+	s.save(msg)
+	cmd := s.match(msg)
 	return cmd, nil
 }
 
-func sanitize(msg string) string {
-	var out string
-	out = msg[:len(msg)-1] // cut the new line
-	out = strings.Trim(out, " ")
-	return out
-}
-
-func match(cmd string) string {
-	switch cmd {
-	case "history":
-		return "Great, you know your 'History'!"
-	case "hello":
-		return "Hello there, how are you doing?"
-	default:
-		return cmd
+func (s *Server) save(cmd string) {
+	if cmd != "" {
+		s.history = append(s.history, cmd)
 	}
-}
-
-func respond(msg string, c net.Conn) error {
-	msg += "\n"
-	if _, err := c.Write([]byte(msg)); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s Server) Serve() {
@@ -85,18 +65,18 @@ func (s Server) Serve() {
 			log.Println("Failed to accept the connection", err)
 		}
 
-		go handleConnection(conn)
+		go s.handleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func (s Server) handleConnection(conn net.Conn) {
 
 	connection_count += 1
 	log.Println("Client connected with addr: ", conn.RemoteAddr(), "concurrent clients: ", connection_count)
 
 	for {
 
-		cmd, err := readCommand(conn)
+		cmd, err := s.readCommand(conn)
 		if err != nil {
 			conn.Close()
 			connection_count -= 1
@@ -115,4 +95,31 @@ func handleConnection(conn net.Conn) {
 		}
 
 	}
+}
+
+func (s Server) match(cmd string) string {
+	switch cmd {
+	case "history":
+		return strings.Join(s.history, "\n")
+	case "hello":
+		return "Hello there, how are you doing?"
+	default:
+		return cmd
+	}
+}
+
+func respond(msg string, c net.Conn) error {
+	msg += "\n"
+	if _, err := c.Write([]byte(msg)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func sanitize(msg string) string {
+	var out string
+	out = msg[:len(msg)-1] // cut the new line
+	out = strings.Trim(out, " ")
+	return out
 }
